@@ -209,4 +209,4 @@ pjb.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(b)act
 $("#zf").onchange=e=>{const f=e.target.files[0];e.target.value="";up(f)};
 stat();pj();hi();ta.focus();
 W.restore().then(ok=>{if(ok){pj();sys("Restored project "+W.ws.name+"  "+W.ws.files.size+" files (kept in this browser).")}});
-if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=4").catch(()=>{}));
