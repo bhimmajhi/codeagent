@@ -75,26 +75,28 @@ export default {
       return jsonResponse({ error: "Invalid JSON request." }, 400, headers);
     }
 
-    if (!Array.isArray(body.messages) || body.messages.length < 1 || body.messages.length > MAX_MESSAGES) {
-      return jsonResponse({ error: "Send between 1 and " + MAX_MESSAGES + " messages." }, 400, headers);
+    if (!Array.isArray(body.messages) || body.messages.length < 1) {
+      return jsonResponse({ error: "Send at least 1 message." }, 400, headers);
     }
 
-    const messages = [];
-    for (const item of body.messages) {
+    // Never refuse a long chat: keep only the newest messages instead.
+    let messages = [];
+    for (const item of body.messages.slice(-MAX_MESSAGES)) {
       if (!item || !["user", "assistant"].includes(item.role) || typeof item.content !== "string") {
         return jsonResponse({ error: "Invalid message format." }, 400, headers);
       }
-      if (item.content.length > MAX_MESSAGE) {
-        return jsonResponse({ error: "Message is too long." }, 413, headers);
-      }
-      messages.push({ role: item.role, content: item.content });
+      const content = item.content.length > MAX_MESSAGE
+        ? item.content.slice(0, MAX_MESSAGE) + "\n[...cut: message too long]"
+        : item.content;
+      messages.push({ role: item.role, content });
     }
+    while (messages.length > 1 && messages[0].role !== "user") messages.shift();
 
     const systemText = typeof body.system === "string" ? body.system.trim().slice(0, MAX_SYSTEM) : "";
     const systemPrompt = "You are Code Agent, a helpful AI coding assistant. Help users write, understand, debug, and improve code. Give complete, clearly formatted examples when asked. Explain setup steps simply. Be honest: you cannot run commands, test code, or reach the network. When the instructions describe a project workspace, you may propose complete file contents in the file: block format they describe; the website applies those blocks to the user's project.";
 
     try {
-      const response = await fetch(OPENROUTER_URL, {
+      const callAI = () => fetch(OPENROUTER_URL, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
@@ -114,7 +116,17 @@ export default {
         })
       });
 
+      let response = await callAI();
+      // Free models are rate limited: wait a little and retry before giving up.
+      for (let i = 0; i < 2 && (response.status === 429 || response.status === 503); i++) {
+        await new Promise(r => setTimeout(r, 2500 * (i + 1)));
+        response = await callAI();
+      }
+
       const data = await response.json().catch(() => ({}));
+      if (response.status === 429) {
+        return jsonResponse({ error: "AI provider ki rate limit lag gayi (free model). Thodi der baad dobara bhejein." }, 429, headers);
+      }
       if (!response.ok) {
         const detail = data?.error?.message || data?.message || "OpenRouter API request failed.";
         return jsonResponse({ error: `OpenRouter API error (${response.status}): ${String(detail).slice(0, 250)}` }, 502, headers);
