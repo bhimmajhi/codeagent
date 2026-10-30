@@ -61,11 +61,11 @@ async function send(txt,shown){
  ctl=new AbortController();busy(1);
  try{
   if(S.proxyUrl){
-   const r=await fetch(S.proxyUrl.replace(/\/+$/ ,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:recent(),system:sy}),signal:ctl.signal});
+   const r=await fetch(S.proxyUrl.replace(/\/+$/ ,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:hist.slice(),system:sy}),signal:ctl.signal});
    if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=j.error||j.message||e}catch(x){}throw new Error(r.status+" "+e)}
    const data=await r.json();acc=typeof data.reply==="string"?data.reply:"";draw();hist.push({role:"assistant",content:acc||"(empty)"});
   }else{
-   const u=c.url.replace(/\/+$/ ,"")+(an?"/v1/messages":"/chat/completions"),h={"Content-Type":"application/json"},m=recent();let b;
+   const u=c.url.replace(/\/+$/ ,"")+(an?"/v1/messages":"/chat/completions"),h={"Content-Type":"application/json"},m=hist.slice();let b;
    if(an){h["x-api-key"]=c.key;h["anthropic-version"]="2023-06-01";h["anthropic-dangerous-direct-browser-access"]="true";b={model:c.model,max_tokens:8192,stream:true,messages:m,system:sy}}
    else{h.Authorization="Bearer "+c.key;b={model:c.model,stream:true,messages:[{role:"system",content:sy}].concat(m)}}
    const r=await fetch(u,{method:"POST",headers:h,body:JSON.stringify(b),signal:ctl.signal});
@@ -122,13 +122,6 @@ $("#scl").onclick=()=>dlg.close();
 $("#stl").onclick=openSet;
 /* project: "+" menu, upload / check / fix / download ZIP */
 const mn=$("#mn"),pl=$("#plus"),pjb=$("#pj");
-/* keep the chat from ever hitting a size/length limit: send only the newest messages */
-function recent(){
- let m=hist.slice(-30),n=0,i=m.length;
- while(i>0){n+=m[i-1].content.length;if(n>150000&&i<m.length)break;i--}
- m=m.slice(i);
- while(m.length>1&&m[0].role!=="user")m.shift();
- return m}
 const sysFull=()=>[S.sys,W.PROTOCOL,W.snapshot()].filter(Boolean).join("\n\n");
 function menu(on){mn.hidden=!on;pl.setAttribute("aria-expanded",on?"true":"false")}
 function pj(){
