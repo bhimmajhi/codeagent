@@ -4,14 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Code Agent</title>
+<meta name="theme-color" content="#1b1a19">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="hd">
+  <b class="wt">✻ Welcome to Code Agent ✻</b>
+  <button id="stl" aria-label="Open settings"></button>
+  <span class="d">esc to interrupt</span>
+</div>
 <div id="log" aria-live="polite"></div>
 <footer>
   <div id="spin"></div>
-  <div class="box"><span>&gt;</span><textarea id="in" rows="1" placeholder="Ask anything, or type /help" aria-label="Message"></textarea><button id="go" aria-label="Send">↵</button></div>
-  <div class="st"><button id="stl" aria-label="Open settings"></button><span>esc to interrupt</span></div>
+  <div id="pj" hidden></div>
+  <div class="bw">
+    <div id="mn" role="menu" aria-label="Project" hidden>
+      <button role="menuitem" data-act="up"><i>↑</i>Upload ZIP project</button>
+      <button role="menuitem" data-act="zip"><i>↓</i>Download project as ZIP</button>
+      <button role="menuitem" data-act="chk"><i>✓</i>Check project</button>
+      <button role="menuitem" data-act="fix"><i>✻</i>Fix with AI</button>
+      <button role="menuitem" data-act="rm"><i>×</i>Close project</button>
+    </div>
+    <div class="box"><button id="plus" type="button" aria-label="Project menu" aria-haspopup="menu" aria-expanded="false">+</button><span>&gt;</span><textarea id="in" rows="1" placeholder="Ask anything, or type /help" aria-label="Message"></textarea><button id="go" aria-label="Send">↵</button></div>
+  </div>
+  <input id="zf" type="file" accept=".zip,application/zip,application/x-zip-compressed" hidden>
 </footer>
 
 <dialog id="dlg">
@@ -27,6 +48,8 @@
   <div class="row"><button class="pri" id="ssv">Save</button><button id="srm">Remove key</button><button id="scl">Close</button></div>
 </dialog>
 
+<script src="zip.js"></script>
+<script src="ws.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
