@@ -7,7 +7,7 @@ const MODEL = "meta/llama-3.3-70b-instruct";
 // Apne GitHub Pages origin se YOUR-USERNAME replace karo.
 // Example: https://myusername.github.io
 const ALLOWED_ORIGINS = [
-  "https://YOUR-USERNAME.github.io"
+  "https://bhimmajhi.github.io"
 ];
 
 const SYSTEM_PROMPT = `
@@ -197,7 +197,7 @@ export default {
           messages: [
             {
               role: "system",
-              content: SYSTEM_PROMPT
+              content: (typeof body.system === "string" && body.system.trim() ? body.system.trim() + "\n\n" : "") + SYSTEM_PROMPT
             },
             ...messages
           ],

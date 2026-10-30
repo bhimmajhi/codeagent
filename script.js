@@ -11,7 +11,7 @@ const P={
  xai:{n:"xAI",u:"https://api.x.ai/v1",m:"grok-4"},
  custom:{n:"Custom (OpenAI-compatible)",u:"",m:""}
 };
-let S={prov:"anthropic",cfg:{},sys:""},hist=[],ctl=null,tm=0;
+let S={prov:"openrouter",cfg:{},sys:"",proxyUrl:""},hist=[],ctl=null,tm=0;
 try{Object.assign(S,JSON.parse(localStorage.getItem("ca1")||"{}"))}catch(e){}
 if(!P[S.prov])S.prov="anthropic";
 const save=()=>{try{localStorage.setItem("ca1",JSON.stringify(S))}catch(e){}};
@@ -39,22 +39,25 @@ async function rd(r,an,f){const R=r.body.getReader(),D=new TextDecoder();let b="
    if(t)f(t)}}}
 async function send(txt){
  const c=C(),p=P[S.prov],an=!!p.a;
- if(!c.key){sys("No API key for "+p.n+". Run /key or tap the status line.",1);return}
- if(!c.url||!c.model){sys("Base URL and model are required. Open settings.",1);return}
+ if(!S.proxyUrl&&!c.key){sys("No API key for "+p.n+". Run /key or tap the status line. If using Cloudflare Worker, enter its URL in Settings.",1);return}
+ if(!S.proxyUrl&&(!c.url||!c.model)){sys("Base URL and model are required. Open settings.",1);return}
  hist.push({role:"user",content:txt});add("u",esc(txt));
  const out=add("a","");let acc="",raf=0;
  const draw=()=>{raf=0;out.innerHTML=md(acc);scr()};
  ctl=new AbortController();busy(1);
  try{
-  const u=c.url.replace(/\/+$/,"")+(an?"/v1/messages":"/chat/completions"),h={"Content-Type":"application/json"},m=hist.slice();let b;
-  if(an){h["x-api-key"]=c.key;h["anthropic-version"]="2023-06-01";h["anthropic-dangerous-direct-browser-access"]="true";
-   b={model:c.model,max_tokens:4096,stream:true,messages:m};if(S.sys)b.system=S.sys}
-  else{h.Authorization="Bearer "+c.key;b={model:c.model,stream:true,messages:S.sys?[{role:"system",content:S.sys}].concat(m):m}}
-  const r=await fetch(u,{method:"POST",headers:h,body:JSON.stringify(b),signal:ctl.signal});
-  if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=(j.error&&(j.error.message||j.error))||j.message||e}catch(x){}
-   throw new Error(r.status+" "+(typeof e==="string"?e:JSON.stringify(e)))}
-  await rd(r,an,t=>{acc+=t;if(!raf)raf=requestAnimationFrame(draw)});
-  draw();hist.push({role:"assistant",content:acc||"(empty)"});
+  if(S.proxyUrl){
+   const r=await fetch(S.proxyUrl.replace(/\/+$/ ,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:hist.slice(),system:S.sys}),signal:ctl.signal});
+   if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=j.error||j.message||e}catch(x){}throw new Error(r.status+" "+e)}
+   const data=await r.json();acc=typeof data.reply==="string"?data.reply:"";draw();hist.push({role:"assistant",content:acc||"(empty)"});
+  }else{
+   const u=c.url.replace(/\/+$/ ,"")+(an?"/v1/messages":"/chat/completions"),h={"Content-Type":"application/json"},m=hist.slice();let b;
+   if(an){h["x-api-key"]=c.key;h["anthropic-version"]="2023-06-01";h["anthropic-dangerous-direct-browser-access"]="true";b={model:c.model,max_tokens:4096,stream:true,messages:m};if(S.sys)b.system=S.sys}
+   else{h.Authorization="Bearer "+c.key;b={model:c.model,stream:true,messages:S.sys?[{role:"system",content:S.sys}].concat(m):m}}
+   const r=await fetch(u,{method:"POST",headers:h,body:JSON.stringify(b),signal:ctl.signal});
+   if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=(j.error&&(j.error.message||j.error))||j.message||e}catch(x){}throw new Error(r.status+" "+(typeof e==="string"?e:JSON.stringify(e)))}
+   await rd(r,an,t=>{acc+=t;if(!raf)raf=requestAnimationFrame(draw)});draw();hist.push({role:"assistant",content:acc||"(empty)"});
+  }
  }catch(e){
   const ab=e.name==="AbortError";
   if(acc){draw();hist.push({role:"assistant",content:acc})}else{out.remove();hist.pop()}
@@ -87,11 +90,11 @@ log.addEventListener("click",e=>{const b=e.target.closest(".cp");if(!b)return;
 /* settings */
 $("#sp").innerHTML=Object.keys(P).map(k=>'<option value="'+k+'">'+P[k].n+"</option>").join("");
 function fill(id){const c=C(id);$("#sk").value=c.key;$("#sm").value=c.model;$("#su").value=c.url}
-function openSet(){$("#sp").value=S.prov;fill(S.prov);$("#sy").value=S.sys||"";$("#sk").type="password";$("#sh").textContent="show";dlg.showModal()}
+function openSet(){$("#sp").value=S.prov;fill(S.prov);$("#sy").value=S.sys||"";$("#px").value=S.proxyUrl||"";$("#sk").type="password";$("#sh").textContent="show";dlg.showModal()}
 $("#sp").onchange=e=>fill(e.target.value);
 $("#sh").onclick=()=>{const k=$("#sk"),h=k.type==="password";k.type=h?"text":"password";$("#sh").textContent=h?"hide":"show"};
 $("#ssv").onclick=()=>{const id=$("#sp").value,d=P[id];S.prov=id;
- S.cfg[id]={key:$("#sk").value.trim(),model:$("#sm").value.trim()||d.m,url:$("#su").value.trim()||d.u};S.sys=$("#sy").value;save();stat();dlg.close()};
+ S.cfg[id]={key:$("#sk").value.trim(),model:$("#sm").value.trim()||d.m,url:$("#su").value.trim()||d.u};S.sys=$("#sy").value;S.proxyUrl=$("#px").value.trim().replace(/\/+$/,"");save();stat();dlg.close()};
 $("#srm").onclick=()=>{$("#sk").value="";const id=$("#sp").value;S.cfg[id]=Object.assign(S.cfg[id]||{},{key:""});save();stat()};
 $("#scl").onclick=()=>dlg.close();
 $("#stl").onclick=openSet;

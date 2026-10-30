@@ -1,82 +1,24 @@
-# Code Agent — Hindi Setup Guide
+# Code Agent — 405 Error Fix (Hindi)
 
-Is guide se tum apni AI coding website ko GitHub Pages aur NVIDIA API ke saath connect kar sakte ho.
+Is ZIP mein Cloudflare Worker proxy ka option diya gaya hai. Worker mode mein API key browser mein nahi, Cloudflare Secret mein rahegi.
 
-## Zaroori cheezein
+## 1. GitHub Pages par upload
+1. ZIP extract karein. `codeagent-main` folder ki sabhi files repository ke root mein upload karein.
+2. GitHub → Settings → Pages → Deploy from a branch → `main` / `/(root)` → Save.
+3. Screenshot ke mutabik allowed website origin `https://bhimmajhi.github.io` set hai.
 
-- GitHub account
-- Cloudflare account
-- NVIDIA API key
-- Android phone ya computer
+## 2. Cloudflare Worker deploy
+1. https://dash.cloudflare.com/ par login karein → Workers & Pages → Create Worker.
+2. Worker editor mein is ZIP ki `worker.js` ka poora code paste karke Deploy karein.
+3. Worker Settings → Variables and Secrets mein `NVIDIA_API_KEY` naam ka Secret banayein aur apni NVIDIA API key usmein paste karein. Key ko GitHub par upload na karein.
+4. Agar aapka Pages origin alag hai, `worker.js` ke `ALLOWED_ORIGINS` mein exact origin badal kar redeploy karein.
 
-## Step 1: GitHub Repository Banao
+## 3. Website connect karein
+1. Website reload karein; status line par tap karke Settings kholein.
+2. `Cloudflare Worker URL` mein deployed Worker URL dalein, jaise `https://code-agent-api.YOUR-SUBDOMAIN.workers.dev`.
+3. Worker mode mein browser API Key field zaroori nahi; key Cloudflare Secret se aati hai. Save karke chat try karein.
 
-1. https://github.com/new kholo.
-2. Repository name mein `code-agent` likho.
-3. Public ya Private select karo.
-4. Create repository par click karo.
-5. Repository ke andar `Add file` → `Create new file` par click karo.
-6. File name mein `index.html` likho.
-7. Apni `index.html` file ka poora code paste karo.
-8. `Commit changes` par click karke save karo.
+## 4. Direct API mode
+Worker URL khaali chhodne par selected provider ko direct browser request jayegi. Kuch providers CORS ya hosting restrictions ki wajah se fail kar sakte hain. 405/CORS aaye to Worker mode use karein.
 
-## Step 2: GitHub Pages Enable Karo
-
-1. Apni repository kholo.
-2. `Settings` par click karo.
-3. Side menu mein `Pages` kholo.
-4. Build and deployment section mein `Deploy from a branch` select karo.
-5. Branch mein `main` select karo.
-6. Folder mein `/(root)` select karo.
-7. `Save` par click karo.
-8. Thodi der baad tumhari website ka URL milega.
-
-Example:
-
-https://YOUR-USERNAME.github.io/code-agent/
-
-Apne GitHub username ko `YOUR-USERNAME` ki jagah likhna.
-
-## Step 3: Cloudflare Worker Banao
-
-1. https://dash.cloudflare.com/ kholo.
-2. Apne Cloudflare account mein sign in karo.
-3. `Workers & Pages` section kholo.
-4. Naya Worker create karo.
-5. Worker ka naam `code-agent-api` rakho.
-6. Worker ke code editor ko kholo.
-7. Wahan pehle se maujood code ko replace karo.
-8. Apni `worker.js` file ka poora code paste karo.
-9. `Deploy` par click karo.
-
-## Step 4: NVIDIA API Key Secure Karo
-
-1. Cloudflare dashboard mein apna `code-agent-api` Worker kholo.
-2. `Settings` section kholo.
-3. `Variables and Secrets` option dhoondo.
-4. Naya Secret add karo.
-
-Secret name:
-
-NVIDIA_API_KEY
-
-Secret value:
-
-Apni NVIDIA API key yahan Cloudflare ke Secret field mein paste karo.
-
-5. Secret ko save karo.
-6. Agar zaroorat ho, Worker ko dobara deploy karo.
-
-IMPORTANT:
-- NVIDIA API key ko `index.html` mein kabhi mat daalna.
-- API key ko public GitHub repository mein kabhi upload mat karna.
-- Apni API key kisi doosre vyakti ko mat bhejna.
-
-## Step 5: CORS Setting Configure Karo
-
-Apni `worker.js` file mein yeh code dhoondo:
-
-```javascript
-const ALLOWED_ORIGINS = [
-  "https://YOUR-USERNAME.github.io"
-];
+**Note:** ZIP ka code update hai, lekin Worker ko aapke Cloudflare account mein deploy karna aur NVIDIA secret set karna aapko karna hoga. Main aapke account mein login nahi kar sakta.
