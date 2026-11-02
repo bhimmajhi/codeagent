@@ -1,5 +1,13 @@
+// Fast-first targets. Tried in order; the first one that answers is streamed back.
+// Groq is used first if GROQ_API_KEY is set (fastest). OpenRouter free models are the fallback.
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free";
+const OPENROUTER_MODELS = [
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemma-3-27b-it:free",
+  "deepseek/deepseek-chat-v3.1:free"
+];
 
 // Limits. The website sends the uploaded project inside the system prompt, so these are larger
 // than a plain chat needs.
@@ -7,7 +15,7 @@ const MAX_BODY = 400000;      // whole request, in characters
 const MAX_SYSTEM = 150000;    // system prompt (includes the project files)
 const MAX_MESSAGES = 40;
 const MAX_MESSAGE = 50000;
-const MAX_TOKENS = 8192;      // length of the AI's answer
+const MAX_TOKENS = 4096;      // length of the AI's answer
 
 // GitHub Pages website origin from the supplied screenshot.
 const ALLOWED_ORIGINS = ["https://bhimmajhi.github.io"];
@@ -60,8 +68,8 @@ export default {
       return jsonResponse({ error: "Origin not allowed. Check ALLOWED_ORIGINS in worker.js." }, 403, headers);
     }
 
-    if (!env.OPENROUTER_API_KEY) {
-      return jsonResponse({ error: "Missing OPENROUTER_API_KEY secret in Cloudflare." }, 500, headers);
+    if (!env.OPENROUTER_API_KEY && !env.GROQ_API_KEY) {
+      return jsonResponse({ error: "Add OPENROUTER_API_KEY or GROQ_API_KEY secret in Cloudflare." }, 500, headers);
     }
 
     let body;
@@ -93,40 +101,40 @@ export default {
     const systemText = typeof body.system === "string" ? body.system.trim().slice(0, MAX_SYSTEM) : "";
     const systemPrompt = "You are Code Agent, a helpful AI coding assistant. Help users write, understand, debug, and improve code. Give complete, clearly formatted examples when asked. Explain setup steps simply. Be honest: you cannot run commands, test code, or reach the network. When the instructions describe a project workspace, you may propose complete file contents in the file: block format they describe; the website applies those blocks to the user's project.";
 
-    try {
-      const response = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://bhimmajhi.github.io",
-          "X-Title": "Code Agent"
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: [
-            { role: "system", content: systemText ? systemText + "\n\n" + systemPrompt : systemPrompt },
-            ...messages
-          ],
-          temperature: 0.3,
-          max_tokens: MAX_TOKENS,
-          stream: false
-        })
-      });
+    const fullMessages = [
+      { role: "system", content: systemText ? systemText + "\n\n" + systemPrompt : systemPrompt },
+      ...messages
+    ];
 
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        const detail = data?.error?.message || data?.message || "OpenRouter API request failed.";
-        return jsonResponse({ error: `OpenRouter API error (${response.status}): ${String(detail).slice(0, 250)}` }, 502, headers);
-      }
-
-      const reply = data?.choices?.[0]?.message?.content;
-      if (typeof reply !== "string" || !reply.trim()) {
-        return jsonResponse({ error: "No reply received. Check model availability and API access." }, 502, headers);
-      }
-      return jsonResponse({ reply }, 200, headers);
-    } catch {
-      return jsonResponse({ error: "Could not connect to OpenRouter API. Try again later." }, 502, headers);
+    const targets = [];
+    if (env.GROQ_API_KEY) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: GROQ_MODEL, name: "Groq" });
+    if (env.OPENROUTER_API_KEY) {
+      for (const m of OPENROUTER_MODELS) targets.push({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: m, name: "OpenRouter", or: true });
     }
+
+    let lastError = "No provider answered.";
+    for (const t of targets) {
+      try {
+        const h = { "Authorization": `Bearer ${t.key}`, "Content-Type": "application/json" };
+        if (t.or) { h["HTTP-Referer"] = "https://bhimmajhi.github.io"; h["X-Title"] = "Code Agent"; }
+        const response = await fetch(t.url, {
+          method: "POST",
+          headers: h,
+          body: JSON.stringify({ model: t.model, messages: fullMessages, temperature: 0.3, max_tokens: MAX_TOKENS, stream: true })
+        });
+        if (!response.ok || !response.body) {
+          const data = await response.json().catch(() => ({}));
+          lastError = `${t.name} (${response.status}): ${String(data?.error?.message || data?.message || "failed").slice(0, 200)}`;
+          continue;
+        }
+        return new Response(response.body, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", ...headers }
+        });
+      } catch {
+        lastError = `Could not connect to ${t.name}.`;
+      }
+    }
+    return jsonResponse({ error: lastError }, 502, headers);
   }
 };

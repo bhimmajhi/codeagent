@@ -63,7 +63,7 @@ async function send(txt,shown){
   if(S.proxyUrl){
    const r=await fetch(S.proxyUrl.replace(/\/+$/ ,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:hist.slice(),system:sy}),signal:ctl.signal});
    if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=j.error||j.message||e}catch(x){}throw new Error(r.status+" "+e)}
-   const data=await r.json();acc=typeof data.reply==="string"?data.reply:"";draw();hist.push({role:"assistant",content:acc||"(empty)"});
+   await rd(r,false,t=>{acc+=t;if(!raf)raf=requestAnimationFrame(draw)});draw();hist.push({role:"assistant",content:acc||"(empty)"});
   }else{
    const u=c.url.replace(/\/+$/ ,"")+(an?"/v1/messages":"/chat/completions"),h={"Content-Type":"application/json"},m=hist.slice();let b;
    if(an){h["x-api-key"]=c.key;h["anthropic-version"]="2023-06-01";h["anthropic-dangerous-direct-browser-access"]="true";b={model:c.model,max_tokens:8192,stream:true,messages:m,system:sy}}
