@@ -1,7 +1,8 @@
 // Fast-first targets. Tried in order; the first one that answers is streamed back.
 // Groq is used first if GROQ_API_KEY is set (fastest). OpenRouter free models are the fallback.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_SMART = "llama-3.3-70b-versatile"; // big tasks
+const GROQ_FAST = "llama-3.1-8b-instant";     // short questions, much faster
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_MODELS = [
   "meta-llama/llama-3.3-70b-instruct:free",
@@ -106,8 +107,15 @@ export default {
       ...messages
     ];
 
+    // Auto switch: short chat question with no project loaded -> fast model, otherwise smart model.
+    const last = messages[messages.length - 1].content;
+    const hasProject = systemText.length > 3000;
+    const wantsBig = hasProject || last.length > 600 || /```|\bfile:|\b(fix|build|create|write|refactor|debug|project|app|website|script)\b/i.test(last);
+    const groqModel = wantsBig ? GROQ_SMART : GROQ_FAST;
+
     const targets = [];
-    if (env.GROQ_API_KEY) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: GROQ_MODEL, name: "Groq" });
+    if (env.GROQ_API_KEY) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: groqModel, name: "Groq" });
+    if (env.GROQ_API_KEY && groqModel === GROQ_FAST) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: GROQ_SMART, name: "Groq" });
     if (env.OPENROUTER_API_KEY) {
       for (const m of OPENROUTER_MODELS) targets.push({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: m, name: "OpenRouter", or: true });
     }
