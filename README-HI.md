@@ -1,59 +1,52 @@
-# Code Agent — ZIP project + Cloudflare Worker (Hindi)
+# Code Agent — Large Project Upgrade (Hindi)
 
-Is ZIP mein Cloudflare Worker proxy ka option hai. Worker mode mein API key browser mein nahi, Cloudflare Secret mein rahegi.
+Is build mein large-project context selection, 10,000-file workspace, 100 MB ZIP upload guard, aur NVIDIA NIM Worker support add kiya gaya hai.
 
-## Naya kya hai: chat box ke left mein **+** button
+## Kya upgrade hua
 
-**+** dabane par menu khulta hai:
+- ZIP reader: 12,000 archive entries tak; workspace mein 10,000 usable files tak.
+- ZIP upload: 100 MB compressed limit; unpacked size limit 300 MB. Mobile browser ki RAM ke hisaab se chhota project behtar rahega.
+- AI context: poora project tree + task ke keywords, manifests, README aur source filenames ke hisaab se relevant files pehle select hoti hain. 135,000 characters tak source context diya jaata hai.
+- Secrets (`.env`, keys, certificates) AI ko nahi bheje jaate. Binary files ko bhi preserve kiya jaata hai.
+- AI response se complete `file:` blocks apply hote hain; Undo aur ZIP download available hain.
+- Worker request/system/output limits bade project ke liye badhaye gaye.
+- NVIDIA NIM ko Worker ka preferred provider banaya gaya.
 
-| Option | Kya karta hai |
-|---|---|
-| Upload ZIP project | Apna project ZIP chuno. Agent use kholta hai aur turant check chala deta hai (JSON, JavaScript syntax, CSS braces, HTML mein toote links, leak hui API key). |
-| Check project | Project ko dobara check karta hai. |
-| Fix with AI | AI ko poora project + check report bheji jaati hai. AI jo files badalta hai woh project mein apply ho jaati hain. Chat box mein kuch likha ho (jaise "sirf style.css theek karo") to woh instruction ban jaata hai. |
-| Download project as ZIP | Poora project (original + AI ke changes) naye ZIP mein download hota hai. Upload kiya tha to naam `<naam>-fixed.zip` hota hai. |
-| Close project | Project band karta hai. |
+## Important limitation
 
-Bina upload kiye bhi chalega: chat mein bolo "ek todo app banao" — AI files banayega, project ban jaayega, phir **Download** se ZIP le lo (`project.zip`).
+GitHub Pages + Cloudflare Worker browser mein project ko read, analyze aur AI se edit kar sakte hain, lekin Worker khud `npm install`, terminal, build ya test command nahi chala sakta. Isliye AI ko real build/test chalane ka daawa nahi karna chahiye. Real command execution ke liye alag isolated sandbox/container runner service chahiye; use public Worker mein unsafe shell ke roop mein expose na karein.
 
-Chat box ke upar project bar mein **Fix** aur **Download** shortcut hain.
+## GitHub Pages deploy
 
-### Commands
-`/upload` `/check` `/fix [kya theek karna hai]` `/zip [naam]` `/files` `/undo` `/close`
+1. ZIP extract karke `codeagent-main` ke andar ki sab files repository root mein upload karein.
+2. GitHub → Settings → Pages → Deploy from a branch → `main` / `/(root)`.
+3. Agar aapka GitHub Pages origin `https://bhimmajhi.github.io` se alag hai, `worker.js` mein `ALLOWED_ORIGINS` ko exact origin se update karein.
 
-- `/undo` AI ke last file changes wapas kar deta hai.
-- Project is browser mein save rehta hai (IndexedDB), page reload karne par wapas aa jaata hai.
+## Cloudflare Worker deploy (zaroori)
 
-### Dhyan rakhein
-- ZIP maximum 25 MB. `node_modules`, `.git`, `__MACOSX` skip ho jaate hain.
-- AI ko sirf text files jaati hain (~60,000 characters tak). Images/binary, `.env`, `*.pem`, `*.key` aur bahut badi files AI ko **nahi** bheji jaati aur AI unhe badal nahi sakta. Woh ZIP mein jyon ki tyon rehti hain.
-- Baaki text files aapke chune hue AI provider ko jaati hain. Koi secret files mein ho to pehle hata dein.
-- Agar AI ne file adhoori bheji (chhoti ho gayi ya "rest unchanged" likha), to chat mein "check" warning aati hai — **Undo** dabayein.
-- Original ZIP kabhi change nahi hota; naya ZIP alag se banta hai.
+1. Cloudflare Dashboard → Workers & Pages → apna Worker → Edit code.
+2. Is ZIP ka poora `worker.js` paste karke Deploy karein.
+3. Worker → Settings → Variables and Secrets mein ye secret add karein:
+   - Name: `NVIDIA_API_KEY`
+   - Value: aapki NVIDIA NIM API key (`nvapi-...`)
+4. Optional variable `NVIDIA_MODEL` set kar sakte hain. Default: `meta/llama-3.3-70b-instruct`. Apne NVIDIA account par available model ID use karein.
+5. Fallback chahiye to `GROQ_API_KEY` ya `OPENROUTER_API_KEY` secrets bhi add kar sakte hain.
+6. Worker URL website Settings ke `Cloudflare Worker URL` field mein save karein.
 
-## 1. GitHub Pages par upload
-1. ZIP extract karein. `codeagent-main` folder ki **sabhi** files repository ke root mein upload karein (`index.html`, `style.css`, `script.js`, **`zip.js`**, **`ws.js`**, `worker.js`, `README-HI.md`). `zip.js` aur `ws.js` nayi hain — inke bina **+** menu nahi chalega.
-2. GitHub → Settings → Pages → Deploy from a branch → `main` / `/(root)` → Save.
-3. Allowed website origin `https://bhimmajhi.github.io` set hai.
+**API key GitHub repository ya browser settings mein mat daalein.** Worker secret mein rakhein.
 
-## 2. Cloudflare Worker deploy (dobara karna zaroori)
-`worker.js` mein limits badhai gayi hain taaki poora project bheja ja sake (request 400 KB, jawab 8192 tokens). Purana Worker chalega, par bade project par error dega ya jawab beech mein kat jaayega.
+## Bade project par kaise kaam karein
 
-1. https://dash.cloudflare.com/ par login karein → Workers & Pages → apna Worker kholein.
-2. Worker editor mein is ZIP ki `worker.js` ka poora code paste karke Deploy karein.
-3. Worker Settings → Variables and Secrets mein `OPENROUTER_API_KEY` naam ka Secret banayein aur apni OpenRouter API key usmein paste karein. (Pehle README mein `NVIDIA_API_KEY` likha tha, par `worker.js` `OPENROUTER_API_KEY` hi padhta hai.) Key ko GitHub par upload na karein.
-4. Agar aapka Pages origin alag hai, `worker.js` ke `ALLOWED_ORIGINS` mein exact origin badal kar redeploy karein.
+1. ZIP upload karein.
+2. Pehle poochhein: `Analyze the architecture. Read the project manifests, entry points, routing, data flow and important modules. Do not edit files yet. Clearly list files you actually inspected.`
+3. Phir ek focused task dein, jaise `Fix authentication flow across frontend and backend. Inspect every relevant file and update all required files.`
+4. Changes ke baad `/check` chalayein, `/undo` se rollback kar sakte hain, aur `/zip` se output download karein.
 
-## 3. Website connect karein
-1. Website reload karein; status line par tap karke Settings kholein.
-2. `Cloudflare Worker URL` mein deployed Worker URL dalein, jaise `https://code-agent-api.YOUR-SUBDOMAIN.workers.dev`.
-3. Worker mode mein browser API Key field zaroori nahi; key Cloudflare Secret se aati hai. Save karke chat try karein.
+## Commands
 
-## 4. Direct API mode
-Worker URL khaali chhodne par selected provider ko direct browser request jayegi. Kuch providers CORS ya hosting restrictions ki wajah se fail kar sakte hain. 405/CORS aaye to Worker mode use karein.
+`/upload` `/check` `/fix [instruction]` `/zip [name]` `/files` `/undo` `/close`
 
-**Note:** Worker ko aapke Cloudflare account mein deploy karna aur secret set karna aapko karna hoga. Main aapke account mein login nahi kar sakta.
+Original ZIP kabhi overwrite nahi hota; fixed project nayi ZIP mein download hota hai.
 
 
-## Model error fix (502 ... 404 "does not exist")
-Worker ab model names hard-code nahi karta. Har 10 minute mein Groq aur OpenRouter se **abhi chalne wale** models ki list leta hai, aur settings mein jo `:free` model aapne chuna hai use pehle try karta hai. Isliye purane model band hone par bhi chat chalegi. **`worker.js` aur `script.js` dono dobara upload/deploy karein.**
+- AI ke through ek individual text file create/edit karne ki limit: 50 MB. Bahut badi files ko chhote sections mein edit karna behtar hai.

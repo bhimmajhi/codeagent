@@ -55,7 +55,7 @@ async function send(txt,shown){
  const c=C(),p=P[S.prov],an=!!p.a;
  if(!S.proxyUrl&&!c.key){sys("No API key for "+p.n+". Run /key or tap the status line. If using Cloudflare Worker, enter its URL in Settings.",1);return}
  if(!S.proxyUrl&&(!c.url||!c.model)){sys("Base URL and model are required. Open settings.",1);return}
- hist.push({role:"user",content:txt});if(shown!==false)add("u",esc(shown||txt));const sy=sysFull();
+ hist.push({role:"user",content:txt});if(shown!==false)add("u",esc(shown||txt));const sy=sysFull(txt);
  const out=add("a","");let acc="",raf=0;
  const draw=()=>{raf=0;out.innerHTML=md(acc);scr()};
  ctl=new AbortController();busy(1);
@@ -123,7 +123,7 @@ $("#stl").onclick=openSet;
 /* project: "+" menu, upload / check / fix / download ZIP */
 const mn=$("#mn"),pl=$("#plus"),pjb=$("#pj");
 const IDENT=()=>"Your name is exactly \"Code Agent\" and you were built by Bhim. Never use or invent any other name for yourself (not Kali, not ChatGPT). The underlying AI model you run on is \""+C().model+"\" via "+P[S.prov].n+". If the user asks your name, say you are Code Agent. If they ask which model you are or what runs you, say: "+C().model+" via "+P[S.prov].n+". Never claim to be made by OpenAI or to be GPT-4 unless that is the model named here. You are an AI coding assistant. Reply in the same language the user writes in (Hindi, Hinglish or English).";
-const sysFull=()=>[IDENT(),S.sys,W.PROTOCOL,W.snapshot()].filter(Boolean).join("\n\n");
+const sysFull=(task)=>[IDENT(),S.sys,W.PROTOCOL,W.snapshot(135000,task)].filter(Boolean).join("\n\n");
 function menu(on){mn.hidden=!on;pl.setAttribute("aria-expanded",on?"true":"false")}
 function pj(){
  const w=W.ws,n=W.nChanged();
@@ -161,7 +161,7 @@ async function dl(name){
 async function up(f){
  if(!f)return;
  if(ctl){sys("Wait for the current reply to finish, then upload.",1);return}
- if(f.size>25*1048576){sys("That ZIP is larger than 25 MB.",1);return}
+ if(f.size>100*1048576){sys("That ZIP is larger than 100 MB. Large archives may exceed this browser's memory.",1);return}
  if(W.ws.files.size&&W.nChanged()&&!confirm("Replace the current project? It has changes you have not downloaded."))return;
  try{
   W.load(await Zip.read(await f.arrayBuffer()),f.name.replace(/\.zip$/i,""));
@@ -210,4 +210,4 @@ pjb.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(b)act
 $("#zf").onchange=e=>{const f=e.target.files[0];e.target.value="";up(f)};
 stat();pj();hi();ta.focus();
 W.restore().then(ok=>{if(ok){pj();sys("Restored project "+W.ws.name+"  "+W.ws.files.size+" files (kept in this browser).")}});
-if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=8").catch(()=>{}));
+if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=9").catch(()=>{}));

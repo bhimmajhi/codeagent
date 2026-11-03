@@ -16,11 +16,11 @@ const MODEL_CACHE_MS = 10 * 60 * 1000;
 
 // Limits. The website sends the uploaded project inside the system prompt, so these are larger
 // than a plain chat needs.
-const MAX_BODY = 400000;      // whole request, in characters
-const MAX_SYSTEM = 150000;    // system prompt (includes the project files)
+const MAX_BODY = 520000;      // whole request, in characters
+const MAX_SYSTEM = 300000;    // system prompt (includes the project files)
 const MAX_MESSAGES = 40;
-const MAX_MESSAGE = 50000;
-const MAX_TOKENS = 8192;      // length of the AI's answer (full files need room)
+const MAX_MESSAGE = 80000;
+const MAX_TOKENS = 12000;      // length of the AI's answer (full files need room)
 
 // GitHub Pages website origin from the supplied screenshot.
 const ALLOWED_ORIGINS = ["https://bhimmajhi.github.io"];
@@ -114,8 +114,8 @@ export default {
       return jsonResponse({ error: "Origin not allowed. Check ALLOWED_ORIGINS in worker.js." }, 403, headers);
     }
 
-    if (!env.OPENROUTER_API_KEY && !env.GROQ_API_KEY) {
-      return jsonResponse({ error: "Add OPENROUTER_API_KEY or GROQ_API_KEY secret in Cloudflare." }, 500, headers);
+    if (!env.NVIDIA_API_KEY && !env.OPENROUTER_API_KEY && !env.GROQ_API_KEY) {
+      return jsonResponse({ error: "Add NVIDIA_API_KEY (recommended), OPENROUTER_API_KEY, or GROQ_API_KEY secret in Cloudflare." }, 500, headers);
     }
 
     let body;
@@ -159,6 +159,13 @@ export default {
 
     const errors = [];
     const targets = [];
+
+    // NVIDIA NIM is the preferred provider when its secret is configured.
+    if (env.NVIDIA_API_KEY) {
+      const nvidiaModel = (typeof body.model === "string" && body.model.trim() && !body.model.endsWith(":free"))
+        ? body.model.trim() : (env.NVIDIA_MODEL || "meta/llama-3.3-70b-instruct");
+      targets.push({ url: "https://integrate.api.nvidia.com/v1/chat/completions", key: env.NVIDIA_API_KEY, model: nvidiaModel, name: "NVIDIA NIM" });
+    }
 
     // Model picked in the website settings. Only ":free" OpenRouter models are accepted so
     // nobody can spend the owner's credits through the proxy.

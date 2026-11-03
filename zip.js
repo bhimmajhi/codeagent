@@ -4,7 +4,7 @@
 (function (g) {
   "use strict";
   var enc = new TextEncoder(), dec = new TextDecoder("utf-8");
-  var LIM = { entries: 2000, single: 25 * 1024 * 1024, total: 60 * 1024 * 1024 };
+  var LIM = { entries: 12000, single: 50 * 1024 * 1024, total: 300 * 1024 * 1024 };
 
   // ---- CRC32 ----
   var T = new Uint32Array(256);

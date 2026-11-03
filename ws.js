@@ -4,7 +4,7 @@
 (function (g) {
   "use strict";
   var enc = new TextEncoder();
-  var MAX_FILES = 2000, MAX_PUT = 5 * 1024 * 1024;
+  var MAX_FILES = 10000, MAX_PUT = 50 * 1024 * 1024; // 50 MB per AI-created/edited text file
 
   var SKIP_DIR = /(^|\/)(__MACOSX|node_modules|\.git|\.svn|\.idea|\.vscode)(\/|$)/;
   var SKIP_FILE = /(^|\/)(\.DS_Store|Thumbs\.db)$/;
@@ -190,27 +190,49 @@
     "For questions and short snippets, use normal code blocks without file:. You cannot run code or reach the network, so never claim you tested something."
   ].join("\n");
 
-  function snapshot(budget) {
+  function snapshot(budget, query) {
     ws.hidden = new Set();
     if (!ws.files.size) return "";
-    budget = budget || 60000;
+    budget = budget || 135000;
+    query = String(query || "").toLowerCase();
+    var stop = new Set(["the","and","for","with","from","this","that","please","project","code","file","files","fix","make","work","into","what","why","how","all","are","can","you"]);
+    var terms = (query.match(/[a-z0-9_./-]{2,}/g) || []).filter(function (t) { return !stop.has(t); }).slice(0, 24);
     var all = Array.from(ws.files.keys()).sort(), cand = [];
-    var tree = all.map(function (p) { return "- " + p + " (" + fmt(ws.files.get(p).length) + ")"; }).join("\n");
+    var treeFull = all.map(function (p) { return "- " + p + " (" + fmt(ws.files.get(p).length) + ")"; }).join("\n");
+    var tree = treeFull.length > 80000 ? treeFull.slice(0, 80000) + "\n... file tree shortened; total paths: " + all.length : treeFull;
+    var important = /(^|\/)(package\.json|pnpm-lock\.yaml|yarn\.lock|package-lock\.json|readme[^/]*|vite\.config\.[^/]+|next\.config\.[^/]+|tsconfig\.json|pyproject\.toml|requirements\.txt|Cargo\.toml|go\.mod|pom\.xml|build\.gradle|dockerfile|\.github\/workflows\/[^/]+)$/i;
     all.forEach(function (p) {
       var b = ws.files.get(p);
-      if (SECRET_FILE.test(p) || isBin(p, b)) ws.hidden.add(p); else cand.push([p, text(b)]);
+      if (SECRET_FILE.test(p) || isBin(p, b)) { ws.hidden.add(p); return; }
+      var content = text(b), lower = p.toLowerCase(), score = 0;
+      if (important.test(p)) score += 100;
+      if (/^(src\/)?(index|main|app|server|routes|api)\.[^/]+$/i.test(p)) score += 35;
+      if (/\.(js|jsx|ts|tsx|py|go|rs|java|php|rb|vue|svelte)$/i.test(p)) score += 8;
+      terms.forEach(function (term) {
+        if (lower.indexOf(term) >= 0) score += 24;
+        var hits = content.toLowerCase().split(term).length - 1;
+        if (hits) score += Math.min(30, hits * 2);
+      });
+      cand.push({ path: p, content: content, score: score });
     });
+    cand.sort(function (a, b) { return b.score - a.score || a.path.localeCompare(b.path); });
     var shown = new Map(), used = 0;
-    cand.slice().sort(function (a, b) { return a[1].length - b[1].length; }).forEach(function (x) {
-      if (used + x[1].length + 40 > budget) ws.hidden.add(x[0]); else { used += x[1].length + 40; shown.set(x[0], x[1]); }
+    cand.forEach(function (x) {
+      var cost = x.content.length + x.path.length + 50;
+      if (used + cost <= budget) { used += cost; shown.set(x.path, x.content); }
+      else ws.hidden.add(x.path);
     });
     var body = all.filter(function (p) { return shown.has(p); }).map(function (p) {
       var s = shown.get(p);
       return '<file path="' + p + '">\n' + s + (s.slice(-1) === "\n" || !s ? "" : "\n") + "</file>";
     }).join("\n");
     var hid = Array.from(ws.hidden);
-    return 'Current project "' + ws.name + '" (' + ws.files.size + " files):\n" + tree + "\n\n" + body +
-      (hid.length ? "\n\nNot shown to you (binary, secret, or too large): " + hid.join(", ") + ". Leave these files unchanged and do not output them." : "");
+    var hiddenList = hid.slice(0, 250).join(", ") + (hid.length > 250 ? ", ... and " + (hid.length - 250) + " more" : "");
+    return 'Project "' + ws.name + '" (' + ws.files.size + " files; " + fmt(size()) + ").\n" +
+      "Full file tree (all paths):\n" + tree + "\n\n" +
+      "Task-focused source context (selected by filenames, project manifests and task keywords; " + shown.size + " files shown):\n" + body +
+      (hid.length ? "\n\nFiles not included in this request (binary, secret, or outside context budget): " + hiddenList +
+      ". Do not claim to have read these files. Ask for a narrower task or inspect relevant files in a follow-up." : "");
   }
 
   // ---------- AI replies -> file changes ----------
