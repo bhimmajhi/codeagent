@@ -1,14 +1,18 @@
 // Fast-first targets. Tried in order; the first one that answers is streamed back.
 // Groq is used first if GROQ_API_KEY is set (fastest). OpenRouter free models are the fallback.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_SMART = "llama-3.3-70b-versatile"; // big tasks
-const GROQ_FAST = "llama-3.1-8b-instant";     // short questions, much faster
+const GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const OPENROUTER_MODELS = [
-  "meta-llama/llama-3.3-70b-instruct:free",
-  "google/gemma-3-27b-it:free",
-  "deepseek/deepseek-chat-v3.1:free"
-];
+const OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models";
+
+// Preferences only. Model names change often, so the real list is fetched live from the
+// providers (see liveGroqModels / liveFreeOpenRouterModels) and these are just sort hints.
+const GROQ_SMART_HINTS = ["llama-3.3-70b", "llama-4", "qwen", "gpt-oss-120b", "kimi", "deepseek"];
+const GROQ_FAST_HINTS = ["llama-3.1-8b", "gpt-oss-20b", "llama-3.2"];
+const GROQ_SKIP = /whisper|tts|guard|prompt-guard|playai|orpheus|embed|distil-whisper/i;
+const OR_HINTS = ["qwen3-coder", "nemotron", "gpt-oss", "deepseek", "llama-3.3", "gemma", "qwen"];
+const MAX_OR_TRIES = 6;
+const MODEL_CACHE_MS = 10 * 60 * 1000;
 
 // Limits. The website sends the uploaded project inside the system prompt, so these are larger
 // than a plain chat needs.
@@ -16,7 +20,7 @@ const MAX_BODY = 400000;      // whole request, in characters
 const MAX_SYSTEM = 150000;    // system prompt (includes the project files)
 const MAX_MESSAGES = 40;
 const MAX_MESSAGE = 50000;
-const MAX_TOKENS = 4096;      // length of the AI's answer
+const MAX_TOKENS = 8192;      // length of the AI's answer (full files need room)
 
 // GitHub Pages website origin from the supplied screenshot.
 const ALLOWED_ORIGINS = ["https://bhimmajhi.github.io"];
@@ -28,6 +32,7 @@ function corsHeaders(request) {
     "Access-Control-Allow-Origin": allowed ? origin : "null",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Expose-Headers": "X-Model",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin"
   };
@@ -40,6 +45,46 @@ function jsonResponse(data, status, headers) {
       "Content-Type": "application/json; charset=utf-8",
       ...headers
     }
+  });
+}
+
+const cache = {};
+async function cached(name, loader) {
+  const hit = cache[name];
+  if (hit && Date.now() - hit.t < MODEL_CACHE_MS) return hit.v;
+  const v = await loader();
+  if (v && v.length) cache[name] = { t: Date.now(), v };
+  return v;
+}
+
+function rank(id, hints) {
+  const i = hints.findIndex(h => id.toLowerCase().includes(h));
+  return i === -1 ? hints.length : i;
+}
+
+// Chat models this Groq key can really use.
+async function liveGroqModels(key) {
+  return cached("groq:" + key.slice(-6), async () => {
+    const r = await fetch(GROQ_MODELS_URL, { headers: { Authorization: `Bearer ${key}` } });
+    if (!r.ok) throw new Error(`Groq model list (${r.status})`);
+    const d = await r.json();
+    return (d.data || []).filter(m => m.active !== false && !GROQ_SKIP.test(m.id)).map(m => m.id);
+  });
+}
+
+// Currently free text models on OpenRouter (the public list needs no key).
+async function liveFreeOpenRouterModels() {
+  return cached("or", async () => {
+    const r = await fetch(OPENROUTER_MODELS_URL);
+    if (!r.ok) throw new Error(`OpenRouter model list (${r.status})`);
+    const d = await r.json();
+    return (d.data || [])
+      .filter(m => String(m.id).endsWith(":free")
+        && Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0
+        && (m.architecture?.output_modalities || ["text"]).includes("text")
+        && (m.context_length || 0) >= 16000)
+      .sort((a, b) => rank(a.id, OR_HINTS) - rank(b.id, OR_HINTS) || (b.context_length || 0) - (a.context_length || 0))
+      .map(m => m.id);
   });
 }
 
@@ -100,7 +145,7 @@ export default {
     }
 
     const systemText = typeof body.system === "string" ? body.system.trim().slice(0, MAX_SYSTEM) : "";
-    const systemPrompt = "You are Code Agent, a helpful AI coding assistant. Help users write, understand, debug, and improve code. Give complete, clearly formatted examples when asked. Explain setup steps simply. Be honest: you cannot run commands, test code, or reach the network. When the instructions describe a project workspace, you may propose complete file contents in the file: block format they describe; the website applies those blocks to the user's project.";
+    const systemPrompt = "You are Code Agent, a helpful AI coding assistant, built by Bhim. Never claim to be ChatGPT, GPT-4 or made by OpenAI; you run on an underlying model chosen in settings. Reply in the user's language. Help users write, understand, debug, and improve code. Give complete, clearly formatted examples when asked. Explain setup steps simply. Be honest: you cannot run commands, test code, or reach the network. When the instructions describe a project workspace, you may propose complete file contents in the file: block format they describe; the website applies those blocks to the user's project.";
 
     const fullMessages = [
       { role: "system", content: systemText ? systemText + "\n\n" + systemPrompt : systemPrompt },
@@ -111,16 +156,41 @@ export default {
     const last = messages[messages.length - 1].content;
     const hasProject = systemText.length > 3000;
     const wantsBig = hasProject || last.length > 600 || /```|\bfile:|\b(fix|build|create|write|refactor|debug|project|app|website|script)\b/i.test(last);
-    const groqModel = wantsBig ? GROQ_SMART : GROQ_FAST;
 
+    const errors = [];
     const targets = [];
-    if (env.GROQ_API_KEY) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: groqModel, name: "Groq" });
-    if (env.GROQ_API_KEY && groqModel === GROQ_FAST) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: GROQ_SMART, name: "Groq" });
-    if (env.OPENROUTER_API_KEY) {
-      for (const m of OPENROUTER_MODELS) targets.push({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: m, name: "OpenRouter", or: true });
+
+    // Model picked in the website settings. Only ":free" OpenRouter models are accepted so
+    // nobody can spend the owner's credits through the proxy.
+    const picked = typeof body.model === "string" ? body.model.trim() : "";
+    if (env.OPENROUTER_API_KEY && /^[\w.\-\/]+:free$/.test(picked)) {
+      targets.push({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: picked, name: "OpenRouter", or: true });
     }
 
-    let lastError = "No provider answered.";
+    if (env.GROQ_API_KEY) {
+      try {
+        const live = await liveGroqModels(env.GROQ_API_KEY);
+        const hints = wantsBig ? GROQ_SMART_HINTS : GROQ_FAST_HINTS;
+        const other = wantsBig ? GROQ_FAST_HINTS : GROQ_SMART_HINTS;
+        const ordered = [...live].sort((x, y) => rank(x, hints) - rank(y, hints) || rank(x, other) - rank(y, other));
+        for (const m of ordered.slice(0, 2)) targets.push({ url: GROQ_URL, key: env.GROQ_API_KEY, model: m, name: "Groq" });
+      } catch (e) {
+        errors.push(String(e.message || e).slice(0, 120));
+      }
+    }
+
+    if (env.OPENROUTER_API_KEY) {
+      try {
+        const free = await liveFreeOpenRouterModels();
+        for (const m of free) {
+          if (targets.length >= MAX_OR_TRIES + 3) break;
+          if (!targets.some(t => t.model === m)) targets.push({ url: OPENROUTER_URL, key: env.OPENROUTER_API_KEY, model: m, name: "OpenRouter", or: true });
+        }
+      } catch (e) {
+        errors.push(String(e.message || e).slice(0, 120));
+      }
+    }
+
     for (const t of targets) {
       try {
         const h = { "Authorization": `Bearer ${t.key}`, "Content-Type": "application/json" };
@@ -132,17 +202,18 @@ export default {
         });
         if (!response.ok || !response.body) {
           const data = await response.json().catch(() => ({}));
-          lastError = `${t.name} (${response.status}): ${String(data?.error?.message || data?.message || "failed").slice(0, 200)}`;
+          errors.push(`${t.name} ${t.model} (${response.status}): ${String(data?.error?.message || data?.message || "failed").slice(0, 120)}`);
           continue;
         }
         return new Response(response.body, {
           status: 200,
-          headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", ...headers }
+          headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache", "X-Model": t.model, ...headers }
         });
       } catch {
-        lastError = `Could not connect to ${t.name}.`;
+        errors.push(`Could not connect to ${t.name} (${t.model}).`);
       }
     }
+    const lastError = errors.length ? errors.slice(-4).join(" | ") : "No provider answered.";
     return jsonResponse({ error: lastError }, 502, headers);
   }
 };

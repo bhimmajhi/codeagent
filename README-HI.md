@@ -53,3 +53,7 @@ Chat box ke upar project bar mein **Fix** aur **Download** shortcut hain.
 Worker URL khaali chhodne par selected provider ko direct browser request jayegi. Kuch providers CORS ya hosting restrictions ki wajah se fail kar sakte hain. 405/CORS aaye to Worker mode use karein.
 
 **Note:** Worker ko aapke Cloudflare account mein deploy karna aur secret set karna aapko karna hoga. Main aapke account mein login nahi kar sakta.
+
+
+## Model error fix (502 ... 404 "does not exist")
+Worker ab model names hard-code nahi karta. Har 10 minute mein Groq aur OpenRouter se **abhi chalne wale** models ki list leta hai, aur settings mein jo `:free` model aapne chuna hai use pehle try karta hai. Isliye purane model band hone par bhi chat chalegi. **`worker.js` aur `script.js` dono dobara upload/deploy karein.**

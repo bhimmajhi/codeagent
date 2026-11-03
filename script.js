@@ -67,7 +67,7 @@ async function send(txt,shown){
   }else{
    const u=c.url.replace(/\/+$/ ,"")+(an?"/v1/messages":"/chat/completions"),h={"Content-Type":"application/json"},m=hist.slice();let b;
    if(an){h["x-api-key"]=c.key;h["anthropic-version"]="2023-06-01";h["anthropic-dangerous-direct-browser-access"]="true";b={model:c.model,max_tokens:8192,stream:true,messages:m,system:sy}}
-   else{h.Authorization="Bearer "+c.key;b={model:c.model,stream:true,messages:[{role:"system",content:sy}].concat(m)}}
+   else{h.Authorization="Bearer "+c.key;b={model:c.model,stream:true,max_tokens:8192,messages:[{role:"system",content:sy}].concat(m)}}
    const r=await fetch(u,{method:"POST",headers:h,body:JSON.stringify(b),signal:ctl.signal});
    if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=(j.error&&(j.error.message||j.error))||j.message||e}catch(x){}throw new Error(r.status+" "+(typeof e==="string"?e:JSON.stringify(e)))}
    await rd(r,an,t=>{acc+=t;if(!raf)raf=requestAnimationFrame(draw)});draw();hist.push({role:"assistant",content:acc||"(empty)"});
@@ -122,7 +122,8 @@ $("#scl").onclick=()=>dlg.close();
 $("#stl").onclick=openSet;
 /* project: "+" menu, upload / check / fix / download ZIP */
 const mn=$("#mn"),pl=$("#plus"),pjb=$("#pj");
-const sysFull=()=>[S.sys,W.PROTOCOL,W.snapshot()].filter(Boolean).join("\n\n");
+const IDENT="You are Code Agent, an AI coding assistant. Never claim to be ChatGPT, GPT-4 or made by OpenAI. If asked who made you, say you are Code Agent, built by Bhim, running on an underlying AI model chosen in settings, and you do not know more about that model's maker. Reply in the same language the user writes in (Hindi, Hinglish or English).";
+const sysFull=()=>[IDENT,S.sys,W.PROTOCOL,W.snapshot()].filter(Boolean).join("\n\n");
 function menu(on){mn.hidden=!on;pl.setAttribute("aria-expanded",on?"true":"false")}
 function pj(){
  const w=W.ws,n=W.nChanged();
@@ -209,4 +210,4 @@ pjb.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(b)act
 $("#zf").onchange=e=>{const f=e.target.files[0];e.target.value="";up(f)};
 stat();pj();hi();ta.focus();
 W.restore().then(ok=>{if(ok){pj();sys("Restored project "+W.ws.name+"  "+W.ws.files.size+" files (kept in this browser).")}});
-if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=4").catch(()=>{}));
+if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=6").catch(()=>{}));
