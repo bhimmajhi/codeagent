@@ -61,7 +61,7 @@ async function send(txt,shown){
  ctl=new AbortController();busy(1);
  try{
   if(S.proxyUrl){
-   const r=await fetch(S.proxyUrl.replace(/\/+$/ ,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:hist.slice(),system:sy}),signal:ctl.signal});
+   const r=await fetch(S.proxyUrl.replace(/\/+$/ ,"")+"/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:hist.slice(),system:sy,model:c.model}),signal:ctl.signal});
    if(!r.ok){let e=await r.text();try{const j=JSON.parse(e);e=j.error||j.message||e}catch(x){}throw new Error(r.status+" "+e)}
    await rd(r,false,t=>{acc+=t;if(!raf)raf=requestAnimationFrame(draw)});draw();hist.push({role:"assistant",content:acc||"(empty)"});
   }else{
