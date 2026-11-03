@@ -122,8 +122,8 @@ $("#scl").onclick=()=>dlg.close();
 $("#stl").onclick=openSet;
 /* project: "+" menu, upload / check / fix / download ZIP */
 const mn=$("#mn"),pl=$("#plus"),pjb=$("#pj");
-const IDENT="You are Code Agent, an AI coding assistant. Never claim to be ChatGPT, GPT-4 or made by OpenAI. If asked who made you, say you are Code Agent, built by Bhim, running on an underlying AI model chosen in settings, and you do not know more about that model's maker. Reply in the same language the user writes in (Hindi, Hinglish or English).";
-const sysFull=()=>[IDENT,S.sys,W.PROTOCOL,W.snapshot()].filter(Boolean).join("\n\n");
+const IDENT=()=>"Your name is exactly \"Code Agent\" and you were built by Bhim. Never use or invent any other name for yourself (not Kali, not ChatGPT). The underlying AI model you run on is \""+C().model+"\" via "+P[S.prov].n+". If the user asks your name, say you are Code Agent. If they ask which model you are or what runs you, say: "+C().model+" via "+P[S.prov].n+". Never claim to be made by OpenAI or to be GPT-4 unless that is the model named here. You are an AI coding assistant. Reply in the same language the user writes in (Hindi, Hinglish or English).";
+const sysFull=()=>[IDENT(),S.sys,W.PROTOCOL,W.snapshot()].filter(Boolean).join("\n\n");
 function menu(on){mn.hidden=!on;pl.setAttribute("aria-expanded",on?"true":"false")}
 function pj(){
  const w=W.ws,n=W.nChanged();
@@ -210,4 +210,4 @@ pjb.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(b)act
 $("#zf").onchange=e=>{const f=e.target.files[0];e.target.value="";up(f)};
 stat();pj();hi();ta.focus();
 W.restore().then(ok=>{if(ok){pj();sys("Restored project "+W.ws.name+"  "+W.ws.files.size+" files (kept in this browser).")}});
-if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=6").catch(()=>{}));
+if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=8").catch(()=>{}));
